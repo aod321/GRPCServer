@@ -6,33 +6,41 @@ using UnityEngine;
 public class ColliderTrigger : MonoBehaviour
 {
     public float Reward = 0.0F;
-    public byte collided = 0;
-    // Start is called before the first frame update
-    void Start()
-    {
-        
-    }
+    public byte Done = 0;
+    public bool AlreadyDrop = false;
 
-    // Update is called once per frame
-    void Update()
+
+    void FixedUpdate()
     {
         if (transform.position.y < 0)
         {
             // stop game if drop 
-            Reward = 0.0f;
-            collided = 1;
+            if (!AlreadyDrop)
+            {
+                AlreadyDrop = true;
+                Reward = 0.0f;
+                Done = 1;
+            } 
         }
     }
 
-    void OnTriggerEnter(Collider other)
+    void OnControllerColliderHit(ControllerColliderHit hit)
     {
-        if(other.name == "Sphere01")
+        if (hit.gameObject.CompareTag("Food"))
         {
-            Reward += 1.0F;
-            collided = 1;
+            Reward = 1.0F;
+            Done = 1;
         }
     }
-
+    // private void OnTriggerEnter(Collider other)
+    // {
+    //     if(other.CompareTag("Food"))
+    //     {
+    //         Reward += 1.0F;
+    //         Done = 1;
+    //     }
+    // }
+    
     void OnTriggerExit(Collider other)
     {
     }

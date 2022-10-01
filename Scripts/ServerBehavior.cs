@@ -1,13 +1,15 @@
+using System;
 using System.Threading.Tasks;
 using System.Threading;
 using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
 using UnityEngine;
+using UnityEngine.UI;
 using UnityEngine.SceneManagement;
 using Google.Rpc;
 using Grpc.Core;
-using DmEnvRpc.V1;
+using Environment = DmEnvRpc.V1.Environment;
 
 public class ServerBehavior : MonoBehaviour
 {
@@ -18,9 +20,17 @@ public class ServerBehavior : MonoBehaviour
     private static readonly ConcurrentQueue<System.Action> _postRenderActions = new ConcurrentQueue<System.Action>();
 
     private Server server = null;
-
+    
     public GameObject agentPrefab;
-    public GameObject spherePrefab;
+    public GameObject foodPrefab;
+    public static GameObject agentPrefabStatic;
+    public static GameObject foodPrefabStatic;
+    public string Host = "localhost";
+    public int Port = 30051;
+    public int timeScale = 2;
+    public GridRender gridRender;
+    public static GridRender gridRenderStatic;
+
     
     public static bool isMainThread
     {
@@ -34,26 +44,60 @@ public class ServerBehavior : MonoBehaviour
     void Start()
     {
         Debug.Log("Starting gRPC server ...");
-
+        string[] args = System.Environment.GetCommandLineArgs ();
+        // string[] args = new string[] {"-Host", "localhost", "-Port", "30052"};
+        var port_1 = 0;
+        var host_1 = "";
+        for (int i = 0; i < args.Length; i++) {
+            if (args [i] == "--Port")
+            {
+                int.TryParse(args[i + 1], out port_1);
+                //Debug.Log(port_1);
+            }
+            if (port_1 != 0)
+            {
+                Port = port_1;
+            }
+            else
+            {
+                Port = 30051;
+            }
+            if (args [i] == "--Host") {
+                host_1 = args [i + 1];
+                //Debug.Log(host_1);
+            }
+            if (args [i] == "--TimeScale") {
+                int.TryParse(args[i + 1], out timeScale);
+                if (timeScale == 0) timeScale = 2;
+                //Debug.Log(timeScale);
+            }
+        }
         Camera.onPostRender += OnPostRenderCallback;
-        
         StartGrpcServer(Camera.main);
-        // Time.timeScale = 2;
+        Time.timeScale = timeScale;
     }
 
     void Update()
     {
+        Time.timeScale = timeScale;
         System.Action action;
-        // Debug.Log("updateActions count: " + _updateActions.Count);
+        // ////Debug.Log("updateActions count: " + _updateActions.Count);
         if(_updateActions.TryDequeue(out action)) {
             action();
         } else {
-            // Debug.Log("Update: failed to dequeue action");
+            // ////Debug.Log("Update: failed to dequeue action");
         }
+
     }
 
     void Awake()
     {
+        #if UNITY_EDITOR
+            Debug.unityLogger.logEnabled = true;
+        #else
+            Debug.unityLogger.logEnabled = false;
+        #endif
+
         if (_instance) {
             DestroyImmediate(this);
         }
@@ -62,6 +106,9 @@ public class ServerBehavior : MonoBehaviour
             _mainThread = Thread.CurrentThread;
             DontDestroyOnLoad(this);
         }
+        agentPrefabStatic = agentPrefab;
+        foodPrefabStatic = foodPrefab;
+        gridRenderStatic = gridRender;
     }
 
     void OnDestroy()
@@ -85,10 +132,16 @@ public class ServerBehavior : MonoBehaviour
         }
     }
 
+    // private void OnApplicationQuit()
+    // {
+    //     //Debug.Log("退出释放中....");
+    //     server.ShutdownAsync();
+    //     server = null;
+    //     System.GC.Collect();
+    // }
+
     private void RunServer(Camera camera)
     {
-        const int Port = 30051;
-        const string Host = "localhost";
         if (null == server)
         {
             server = new Server
@@ -108,7 +161,7 @@ public class ServerBehavior : MonoBehaviour
         if(_instance) {
             _updateActions.Enqueue(action);
         } else {
-            Debug.Log("EnqueueUpdateAction: _instance is null");
+            ////Debug.Log("EnqueueUpdateAction: _instance is null");
         }
     }
                                                                                         
@@ -126,7 +179,7 @@ public class ServerBehavior : MonoBehaviour
         });
 
         sem.Wait();
-        // Debug.Log("Semaphore Released");
+        // ////Debug.Log("Semaphore Released");
     }
 
     public static async Task InvokeUpdateAsync(System.Action action)
@@ -164,7 +217,7 @@ public class ServerBehavior : MonoBehaviour
         });
 
         sem.Wait();
-        Debug.Log("Semaphore Released");
+        ////Debug.Log("Semaphore Released");
     }
 
     public static async Task InvokeOnPostRenderAsync(System.Action action)
@@ -178,16 +231,17 @@ public class ServerBehavior : MonoBehaviour
                 sem.Release();
             }
         });
-
+        
         await sem.WaitAsync();
     }
 
     void OnPostRenderCallback(Camera cam)
     {
         // Debug.Log("OnPostRenderCallback: " + cam.name);
-        System.Action action;
-        while(_postRenderActions.TryDequeue(out action)) {
-            action();
-        }
+            System.Action action;
+            while (_postRenderActions.TryDequeue(out action))
+            {
+                action();
+            }
     }
 }
